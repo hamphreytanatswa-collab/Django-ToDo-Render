@@ -60,6 +60,14 @@
     min-width: 190px;
   }
 
+  .due-date-text {
+    color: #ffffff;
+  }
+
+  .time-left-text {
+    color: var(--accent-gold);
+  }
+
   .side-stack {
     display: grid;
     grid-template-rows: auto 1fr;
@@ -88,12 +96,82 @@
     min-height: 46px;
     padding: .45rem;
     font-size: .85rem;
+    cursor: pointer;
+    transition: 0.2s ease;
   }
 
   .calendar-event {
     font-size: .7rem;
     line-height: 1.1;
     overflow-wrap: anywhere;
+  }
+
+  .calendar-day.has-tasks {
+    border-color: var(--accent-gold) !important;
+    background: rgba(197, 160, 89, 0.16) !important;
+    box-shadow: inset 0 0 0 1px rgba(197, 160, 89, 0.15);
+  }
+
+  .calendar-day.has-tasks strong {
+    color: var(--accent-gold);
+  }
+
+  .calendar-day.is-selected {
+    background: var(--accent-gold) !important;
+    border-color: var(--accent-gold) !important;
+    color: #000;
+  }
+
+  .calendar-day.is-selected strong,
+  .calendar-day.is-selected .calendar-event {
+    color: #000 !important;
+  }
+
+  .selected-day-panel {
+    min-height: 48px;
+    background: #111;
+    border: 1px solid #222;
+  }
+
+  .weekly-chart {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    align-items: end;
+    height: 92px;
+  }
+
+  .week-bar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    min-width: 0;
+  }
+
+  .week-bar-track {
+    width: 100%;
+    max-width: 34px;
+    flex: 1;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 999px;
+    display: flex;
+    align-items: end;
+    overflow: hidden;
+  }
+
+  .week-bar-fill {
+    width: 100%;
+    min-height: 3px;
+    background: var(--accent-gold);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+
+  .week-label {
+    font-size: .72rem;
+    color: var(--text-dim);
   }
 
   @media (max-width: 991.98px) {
@@ -173,7 +251,9 @@
             <div class="task-due text-end">
               <small class="text-dim">
                 {% if todo.due_date %}
-                  Due {{ todo.due_date|date:"M d, Y H:i" }} &middot; {% if todo.completed %}Completed{% else %}{{ todo.time_left }}{% endif %}
+                  <span class="due-date-text">Due {{ todo.due_date|date:"M d, Y H:i" }}</span>
+                  <span class="text-dim">&middot;</span>
+                  <span class="time-left-text">{% if todo.completed %}Completed{% else %}{{ todo.time_left }}{% endif %}</span>
                 {% else %}
                   No due date set
                 {% endif %}
@@ -211,7 +291,15 @@
               <div class="progress-bar" role="progressbar"
                    style="width: {{ progress }}%; background: var(--accent-gold); box-shadow: 0 0 15px var(--accent-glow); transition: width 0.8s ease;"
                    aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+
+            <div class="mt-3 text-start">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="card-label">Weekly Progress</span>
+                <small class="text-dim">This month</small>
               </div>
+              <div id="weeklyChart" class="weekly-chart"></div>
             </div>
           </div>
         </div>
@@ -236,6 +324,9 @@
             </div>
 
             <div id="calendarDays"></div>
+            <div id="selectedDayTasks" class="selected-day-panel rounded-3 p-2 mt-3">
+              <small class="text-dim">Select a highlighted day to view its tasks.</small>
+            </div>
           </div>
         </div>
       </div>
@@ -246,12 +337,28 @@
 <script>
 (function() {
   const dueMap = JSON.parse('{{ due_map_json|escapejs }}');
+  const weeklyProgress = JSON.parse('{{ weekly_progress_json|escapejs }}');
   const monthLabel = document.getElementById('calendarMonth');
   const daysContainer = document.getElementById('calendarDays');
+  const selectedDayPanel = document.getElementById('selectedDayTasks');
+  const weeklyChart = document.getElementById('weeklyChart');
   let currentDate = new Date();
+  let selectedDateKey = null;
 
   function formatKey(year, month, day) {
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function(character) {
+      return {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      }[character];
+    });
   }
 
   function renderCalendar(date) {
@@ -274,29 +381,96 @@
       const cellDate = formatKey(year, month + 1, day);
       const events = dueMap[cellDate] || [];
       const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+      const hasTasks = events.length > 0;
 
       cell.className = 'calendar-day rounded-3';
-      cell.style.background = isToday ? '#272727' : '#111';
-      cell.style.border = isToday ? '1px solid var(--accent-gold)' : '1px solid #222';
+      if (hasTasks) {
+        cell.classList.add('has-tasks');
+      }
+      if (selectedDateKey === cellDate) {
+        cell.classList.add('is-selected');
+      }
+      if (selectedDateKey === cellDate) {
+        cell.style.background = 'var(--accent-gold)';
+        cell.style.border = '1px solid var(--accent-gold)';
+      } else if (hasTasks) {
+        cell.style.background = 'rgba(197, 160, 89, 0.16)';
+        cell.style.border = '1px solid var(--accent-gold)';
+      } else {
+        cell.style.background = isToday ? '#272727' : '#111';
+        cell.style.border = isToday ? '1px solid var(--accent-gold)' : '1px solid #222';
+      }
       cell.innerHTML = `<strong class="d-block mb-1">${day}</strong>`;
+      cell.setAttribute('type', 'button');
+      cell.setAttribute('role', 'button');
+      cell.setAttribute('tabindex', '0');
+      cell.setAttribute('aria-label', hasTasks ? `${events.length} task due on ${cellDate}` : `No tasks due on ${cellDate}`);
 
       if (events.length) {
-        cell.innerHTML += events.slice(0, 1).map(title => `<div class="calendar-event text-start text-gold mb-1">&bull; ${title}</div>`).join('');
+        cell.innerHTML += events.slice(0, 1).map(task => `<div class="calendar-event text-start text-gold mb-1">&bull; ${escapeHtml(task.title)}</div>`).join('');
       }
+
+      cell.addEventListener('click', function() {
+        selectedDateKey = cellDate;
+        renderCalendar(currentDate);
+        renderSelectedDay(cellDate);
+      });
+
+      cell.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          cell.click();
+        }
+      });
+
       daysContainer.appendChild(cell);
     }
   }
 
+  function renderSelectedDay(dateKey) {
+    const tasks = dueMap[dateKey] || [];
+    if (!tasks.length) {
+      selectedDayPanel.innerHTML = '<small class="text-dim">No tasks due on this day.</small>';
+      return;
+    }
+
+    selectedDayPanel.innerHTML = tasks.map(task => {
+      const statusClass = task.completed ? 'text-success' : 'time-left-text';
+      const status = task.completed ? 'Completed' : 'Pending';
+      return `<div class="d-flex justify-content-between gap-2 mb-1">
+        <small class="text-light">${escapeHtml(task.title)}</small>
+        <small class="${statusClass}">${status}</small>
+      </div>`;
+    }).join('');
+  }
+
+  function renderWeeklyChart() {
+    weeklyChart.innerHTML = weeklyProgress.map(week => {
+      const height = Math.max(week.percent, week.total ? 8 : 3);
+      return `<div class="week-bar-wrap" title="${week.completed}/${week.total} completed, ${week.percent}%">
+        <div class="week-bar-track">
+          <div class="week-bar-fill" style="height: ${height}%;"></div>
+        </div>
+        <span class="week-label">${week.label}</span>
+      </div>`;
+    }).join('');
+  }
+
   document.getElementById('prevMonth').addEventListener('click', function() {
     currentDate.setMonth(currentDate.getMonth() - 1);
+    selectedDateKey = null;
+    selectedDayPanel.innerHTML = '<small class="text-dim">Select a highlighted day to view its tasks.</small>';
     renderCalendar(currentDate);
   });
 
   document.getElementById('nextMonth').addEventListener('click', function() {
     currentDate.setMonth(currentDate.getMonth() + 1);
+    selectedDateKey = null;
+    selectedDayPanel.innerHTML = '<small class="text-dim">Select a highlighted day to view its tasks.</small>';
     renderCalendar(currentDate);
   });
 
+  renderWeeklyChart();
   renderCalendar(currentDate);
 })();
 </script>

@@ -46,6 +46,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.utils import timezone
 import json
+import calendar
 from .models import Todo
 from .forms import TodoForm
 
@@ -68,11 +69,42 @@ class TodoListView(LoginRequiredMixin, ListView):
         due_map = {}
         for todo in todos:
             if todo.due_date:
-                date_key = timezone.localtime(todo.due_date).strftime('%Y-%m-%d')
-                due_map.setdefault(date_key, []).append(todo.title)
+                local_due = timezone.localtime(todo.due_date)
+                date_key = local_due.strftime('%Y-%m-%d')
+                due_map.setdefault(date_key, []).append({
+                    'title': todo.title,
+                    'completed': todo.completed,
+                })
+
+        now = timezone.localtime()
+        weeks = []
+        _, last_day = calendar.monthrange(now.year, now.month)
+        for index, start_day in enumerate(range(1, last_day + 1, 7), start=1):
+            end_day = min(start_day + 6, last_day)
+            week_tasks = []
+            for todo in todos:
+                if not todo.due_date:
+                    continue
+                local_due = timezone.localtime(todo.due_date)
+                if (
+                    local_due.year == now.year and
+                    local_due.month == now.month and
+                    start_day <= local_due.day <= end_day
+                ):
+                    week_tasks.append(todo)
+            completed_week_tasks = sum(1 for todo in week_tasks if todo.completed)
+            total_week_tasks = len(week_tasks)
+            weeks.append({
+                'label': f'W{index}',
+                'range': f'{start_day}-{end_day}',
+                'completed': completed_week_tasks,
+                'total': total_week_tasks,
+                'percent': round((completed_week_tasks / total_week_tasks * 100) if total_week_tasks else 0),
+            })
 
         context['progress'] = round(progress, 1)
         context['due_map_json'] = json.dumps(due_map)
+        context['weekly_progress_json'] = json.dumps(weeks)
         return context
 
 class TodoUpdateView(LoginRequiredMixin, UpdateView):
