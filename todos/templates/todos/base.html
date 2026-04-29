@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lavender-Todo Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-deep: #0a0a0a;
+      --panel-bg: #161616;
+      --accent-gold: #c5a059;
+      --accent-glow: rgba(197, 160, 89, 0.2);
+      --text-main: #ffffff;
+      --text-dim: #999999;
+      --border-color: #2a2a2a;
+    }
+
+    body, p, span, h1, h2, h3, h4, h5, h6, label { 
+      color: var(--text-main); 
+    }
+    
+    body {
+      background-color: var(--bg-deep);
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 80px;
+      background: #000000;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 25px;
+      position: relative; 
+      flex-shrink: 0;
+    }
+
+    .nav-icon {
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      color: var(--text-dim);
+      font-size: 1.5rem;
+      transition: 0.3s ease;
+      text-decoration: none;
+      margin-bottom: 20px;
+    }
+
+    .nav-icon:hover, .nav-icon.active {
+      color: var(--accent-gold);
+      background: var(--accent-glow);
+    }
+
+    .main-wrapper {
+      flex: 1;
+      padding: 40px;
+      overflow-y: auto;
+      background: radial-gradient(circle at top right, #1a1a1a, #0a0a0a);
+    }
+
+    .glass-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+    }
+
+    .btn-gold {
+      background: var(--accent-gold);
+      color: #000 !important;
+      border: none;
+      font-weight: 700;
+      border-radius: 12px;
+      padding: 12px 28px;
+      transition: 0.3s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn-gold:hover {
+      background: #e0b970;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px var(--accent-glow);
+    }
+
+    input[type="text"], input[type="password"], textarea, select {
+      background: #222 !important;
+      border: 1px solid var(--border-color) !important;
+      color: white !important;
+      border-radius: 12px !important;
+      padding: 14px !important;
+      width: 100%;
+    }
+
+    .logout-btn-trigger {
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: #ff4757;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <a href="{% url 'todo_list' %}" class="nav-icon active">
+      <i class="bi bi-grid-fill"></i>
+    </a>
+    <a href="{% url 'todo_calendar' %}" class="nav-icon">
+      <i class="bi bi-calendar-event"></i>
+    </a>
+    
+    {% if user.is_authenticated %}
+      <form method="post" action="{% url 'logout' %}" style="position: absolute; bottom: 25px;">
+        {% csrf_token %}
+        <button type="submit" title="Logout" class="logout-btn-trigger">
+          <i class="bi bi-power" style="font-size: 1.8rem;"></i>
+        </button>
+      </form>
+    {% endif %}
+  </aside>
+
+  <main class="main-wrapper">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+{% extends 'todos/base.html' %}
+
+{% block content %}
+<header class="d-flex justify-content-between align-items-end mb-5">
+  <div>
+    <h1 class="display-6 fw-bold mb-0">Lavender <strong>To-Do</strong></h1>
+    <p class="text-dim mb-0">Live status of your active Tasks</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'todo_calendar' %}" class="btn btn-outline-light">
+      <i class="bi bi-calendar-event me-2"></i> Calendar
+    </a>
+    <a href="{% url 'todo_create' %}" class="btn-gold">
+      <i class="bi bi-plus-lg"></i> Deploy New Task
+    </a>
+  </div>
+</header>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="glass-card">
+      <span class="card-label">Active Tasks</span>
+      
+      <div class="mt-4">
+        {% for todo in todos %}
+        <div class="d-flex align-items-center justify-content-between p-3 mb-3 rounded-4" 
+             style="background: #1d1d1d; border: 1px solid #2a2a2a; transition: 0.3s;">
+          
+          <form method="post" action="{% url 'todo_toggle' todo.id %}" class="m-0 flex-grow-1">
+            {% csrf_token %}
+            <button type="submit" class="bg-transparent border-0 text-start p-0 w-100">
+              <span class="fs-5 {% if todo.completed %}text-dim text-decoration-line-through{% endif %}">
+                <i class="bi {% if todo.completed %}bi-check-square-fill text-success{% else %}bi-app text-gold{% endif %} me-3"></i>
+                {{ todo.title }}
+              </span>
+            </button>
+          </form>
+
+          <div class="d-flex gap-2 ms-3">
+            <a href="{% url 'todo_edit' todo.id %}" class="nav-icon" style="width: 35px; height: 35px; font-size: 1.1rem; margin-bottom:0;" title="Edit">
+              <i class="bi bi-pencil-square"></i>
+            </a>
+            <a href="{% url 'todo_delete' todo.id %}" class="nav-icon text-danger" style="width: 35px; height: 35px; font-size: 1.1rem; margin-bottom:0;" title="Delete">
+              <i class="bi bi-trash3"></i>
+            </a>
+          </div>
+          <div class="text-end mt-2">
+            <small class="text-dim">
+              {% if todo.due_date %}
+                Due {{ todo.due_date|date:"M d, Y H:i" }} • {% if todo.completed %}Completed{% else %}{{ todo.time_left }}{% endif %}
+              {% else %}
+                No due date set
+              {% endif %}
+            </small>
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-5">
+          <i class="bi bi-terminal text-dim display-3"></i>
+          <p class="text-dim mt-3">No active processes found.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="glass-card text-center h-100">
+      <span class="card-label">Completion Status</span>
+      <div class="py-5">
+        <h2 class="display-3 fw-bold text-gold mb-0">{{ progress }}%</h2>
+        <p class="text-dim mt-2">Overall Task Success Rate</p>
+        
+        <div class="progress mt-4 mx-auto" style="height: 10px; width: 85%; background: #222; border-radius: 20px; border: 1px solid #333;">
+          <div class="progress-bar" role="progressbar" 
+               style="width: {{ progress }}%; background: var(--accent-gold); box-shadow: 0 0 15px var(--accent-glow); transition: width 0.8s ease;" 
+               aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card mt-4">
+      <span class="card-label">Calendar</span>
+      <div class="mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <button id="prevMonth" type="button" class="btn btn-outline-secondary btn-sm">‹</button>
+          <h4 id="calendarMonth" class="mb-0"></h4>
+          <button id="nextMonth" type="button" class="btn btn-outline-secondary btn-sm">›</button>
+        </div>
+
+        <div class="calendar-grid text-dim small mb-3" style="display:grid; grid-template-columns: repeat(7,1fr); gap:.4rem;">
+          <div>Sun</div>
+          <div>Mon</div>
+          <div>Tue</div>
+          <div>Wed</div>
+          <div>Thu</div>
+          <div>Fri</div>
+          <div>Sat</div>
+        </div>
+
+        <div id="calendarDays" style="display:grid; grid-template-columns: repeat(7,1fr); gap:.5rem;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const dueMap = JSON.parse('{{ due_map_json|escapejs }}');
+  const monthLabel = document.getElementById('calendarMonth');
+  const daysContainer = document.getElementById('calendarDays');
+  let currentDate = new Date();
+
+  function formatKey(year, month, day) {
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  function renderCalendar(date) {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    monthLabel.textContent = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+    daysContainer.innerHTML = '';
+
+    const firstDay = new Date(year, month, 1).getDay();
+    const lastDate = new Date(year, month + 1, 0).getDate();
+
+    for (let i = 0; i < firstDay; i++) {
+      const empty = document.createElement('div');
+      empty.style.minHeight = '90px';
+      daysContainer.appendChild(empty);
+    }
+
+    for (let day = 1; day <= lastDate; day++) {
+      const cell = document.createElement('div');
+      const cellDate = formatKey(year, month + 1, day);
+      const events = dueMap[cellDate] || [];
+      const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
+
+      cell.className = 'p-3 rounded-3';
+      cell.style.background = isToday ? '#272727' : '#111';
+      cell.style.border = isToday ? '1px solid var(--accent-gold)' : '1px solid #222';
+      cell.style.minHeight = '90px';
+      cell.innerHTML = `<strong class="d-block mb-2">${day}</strong>`;
+
+      if (events.length) {
+        cell.innerHTML += events.slice(0, 2).map(title => `<div class="text-start small text-gold mb-1" style="line-height:1.2;">• ${title}</div>`).join('');
+      }
+      daysContainer.appendChild(cell);
+    }
+  }
+
+  document.getElementById('prevMonth').addEventListener('click', function() {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    renderCalendar(currentDate);
+  });
+
+  document.getElementById('nextMonth').addEventListener('click', function() {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    renderCalendar(currentDate);
+  });
+
+  renderCalendar(currentDate);
+})();
+</script>
+{% endblock %}

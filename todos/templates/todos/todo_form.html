@@ -1,0 +1,23 @@
+{% extends 'todos/base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-center align-items-center" style="min-height: 70vh;">
+    <div class="glass-card w-100" style="max-width: 550px;">
+        <span class="card-label">{% if form.instance.pk %}Update Protocol{% else %}Initialize Module{% endif %}</span>
+        <h2 class="mb-4">Task Details</h2>
+        
+        <form method="post">
+            {% csrf_token %}
+            <div class="mb-4">
+                {{ form.as_p }}
+            </div>
+            <div class="d-grid gap-3">
+                <button type="submit" class="btn-gold justify-content-center py-3">
+                    <i class="bi bi-cpu-fill"></i> Save Entry
+                </button>
+                <a href="{% url 'todo_list' %}" class="btn text-dim">Cancel Operation</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
