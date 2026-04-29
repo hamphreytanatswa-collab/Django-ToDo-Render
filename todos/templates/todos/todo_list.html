@@ -1,105 +1,243 @@
 {% extends 'todos/base.html' %}
 
 {% block content %}
-<header class="d-flex justify-content-between align-items-end mb-5">
-  <div>
-    <h1 class="display-6 fw-bold mb-0">Lavender <strong>To-Do</strong></h1>
-    <p class="text-dim mb-0">Live status of your active Tasks</p>
-  </div>
-  <div class="d-flex gap-2">
-    <a href="{% url 'todo_calendar' %}" class="btn btn-outline-light">
-      <i class="bi bi-calendar-event me-2"></i> Calendar
-    </a>
-    <a href="{% url 'todo_create' %}" class="btn-gold">
-      <i class="bi bi-plus-lg"></i> Deploy New Task
-    </a>
-  </div>
-</header>
+<style>
+  .main-wrapper {
+    padding: 24px;
+  }
 
-<div class="row g-4">
-  <div class="col-lg-8">
-    <div class="glass-card">
-      <span class="card-label">Active Tasks</span>
-      
-      <div class="mt-4">
-        {% for todo in todos %}
-        <div class="d-flex align-items-center justify-content-between p-3 mb-3 rounded-4" 
-             style="background: #1d1d1d; border: 1px solid #2a2a2a; transition: 0.3s;">
-          
-          <form method="post" action="{% url 'todo_toggle' todo.id %}" class="m-0 flex-grow-1">
-            {% csrf_token %}
-            <button type="submit" class="bg-transparent border-0 text-start p-0 w-100">
-              <span class="fs-5 {% if todo.completed %}text-dim text-decoration-line-through{% endif %}">
-                <i class="bi {% if todo.completed %}bi-check-square-fill text-success{% else %}bi-app text-gold{% endif %} me-3"></i>
-                {{ todo.title }}
-              </span>
-            </button>
-          </form>
+  .dashboard-shell {
+    height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
 
-          <div class="d-flex gap-2 ms-3">
-            <a href="{% url 'todo_edit' todo.id %}" class="nav-icon" style="width: 35px; height: 35px; font-size: 1.1rem; margin-bottom:0;" title="Edit">
-              <i class="bi bi-pencil-square"></i>
-            </a>
-            <a href="{% url 'todo_delete' todo.id %}" class="nav-icon text-danger" style="width: 35px; height: 35px; font-size: 1.1rem; margin-bottom:0;" title="Delete">
-              <i class="bi bi-trash3"></i>
-            </a>
+  .dashboard-header {
+    flex-shrink: 0;
+  }
+
+  .dashboard-grid {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .dashboard-grid > [class*="col-"] {
+    min-height: 0;
+  }
+
+  .task-card,
+  .side-stack {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .task-list-scroll {
+    max-height: calc(100vh - 190px);
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+
+  .task-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 14px;
+    background: #1d1d1d;
+    border: 1px solid #2a2a2a;
+    transition: 0.3s;
+  }
+
+  .task-title {
+    min-width: 0;
+  }
+
+  .task-title span {
+    overflow-wrap: anywhere;
+  }
+
+  .task-due {
+    min-width: 190px;
+  }
+
+  .side-stack {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    gap: 18px;
+  }
+
+  .compact-card {
+    padding: 22px;
+  }
+
+  .status-panel {
+    min-height: 150px;
+  }
+
+  .status-panel .display-3 {
+    font-size: 2.6rem;
+  }
+
+  #calendarDays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: .35rem;
+  }
+
+  .calendar-day {
+    min-height: 46px;
+    padding: .45rem;
+    font-size: .85rem;
+  }
+
+  .calendar-event {
+    font-size: .7rem;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 991.98px) {
+    body {
+      overflow: auto;
+    }
+
+    .main-wrapper {
+      overflow-y: visible;
+    }
+
+    .dashboard-shell,
+    .task-card,
+    .side-stack {
+      height: auto;
+    }
+
+    .task-list-scroll {
+      max-height: none;
+      overflow: visible;
+    }
+  }
+
+  @media (max-width: 767.98px) {
+    .dashboard-header {
+      align-items: flex-start !important;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .task-row {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+
+    .task-due {
+      min-width: 0;
+      text-align: start !important;
+    }
+  }
+</style>
+
+<div class="dashboard-shell">
+  <header class="dashboard-header d-flex justify-content-between align-items-end">
+    <div>
+      <h1 class="display-6 fw-bold mb-0">Lavender <strong>To-Do</strong></h1>
+      <p class="text-dim mb-0">Live status of your active Tasks</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'todo_calendar' %}" class="btn btn-outline-light">
+        <i class="bi bi-calendar-event me-2"></i> Calendar
+      </a>
+      <a href="{% url 'todo_create' %}" class="btn-gold">
+        <i class="bi bi-plus-lg"></i> Deploy New Task
+      </a>
+    </div>
+  </header>
+
+  <div class="dashboard-grid row g-3">
+    <div class="col-lg-8">
+      <div class="glass-card compact-card task-card">
+        <span class="card-label">Active Tasks</span>
+
+        <div class="task-list-scroll mt-3">
+          {% for todo in todos %}
+          <div class="task-row p-3 mb-3 rounded-4">
+            <form method="post" action="{% url 'todo_toggle' todo.id %}" class="task-title m-0">
+              {% csrf_token %}
+              <button type="submit" class="bg-transparent border-0 text-start p-0 w-100">
+                <span class="fs-5 {% if todo.completed %}text-dim text-decoration-line-through{% endif %}">
+                  <i class="bi {% if todo.completed %}bi-check-square-fill text-success{% else %}bi-app text-gold{% endif %} me-3"></i>
+                  {{ todo.title }}
+                </span>
+              </button>
+            </form>
+
+            <div class="task-due text-end">
+              <small class="text-dim">
+                {% if todo.due_date %}
+                  Due {{ todo.due_date|date:"M d, Y H:i" }} &middot; {% if todo.completed %}Completed{% else %}{{ todo.time_left }}{% endif %}
+                {% else %}
+                  No due date set
+                {% endif %}
+              </small>
+            </div>
+
+            <div class="d-flex gap-2 justify-content-end">
+              <a href="{% url 'todo_edit' todo.id %}" class="nav-icon" style="width: 35px; height: 35px; font-size: 1.1rem; margin-bottom:0;" title="Edit">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              <a href="{% url 'todo_delete' todo.id %}" class="nav-icon text-danger" style="width: 35px; height: 35px; font-size: 1.1rem; margin-bottom:0;" title="Delete">
+                <i class="bi bi-trash3"></i>
+              </a>
+            </div>
           </div>
-          <div class="text-end mt-2">
-            <small class="text-dim">
-              {% if todo.due_date %}
-                Due {{ todo.due_date|date:"M d, Y H:i" }} • {% if todo.completed %}Completed{% else %}{{ todo.time_left }}{% endif %}
-              {% else %}
-                No due date set
-              {% endif %}
-            </small>
+          {% empty %}
+          <div class="text-center py-5">
+            <i class="bi bi-terminal text-dim display-3"></i>
+            <p class="text-dim mt-3">No active processes found.</p>
           </div>
+          {% endfor %}
         </div>
-        {% empty %}
-        <div class="text-center py-5">
-          <i class="bi bi-terminal text-dim display-3"></i>
-          <p class="text-dim mt-3">No active processes found.</p>
-        </div>
-        {% endfor %}
       </div>
     </div>
-  </div>
 
-  <div class="col-lg-4">
-    <div class="glass-card text-center h-100">
-      <span class="card-label">Completion Status</span>
-      <div class="py-5">
-        <h2 class="display-3 fw-bold text-gold mb-0">{{ progress }}%</h2>
-        <p class="text-dim mt-2">Overall Task Success Rate</p>
-        
-        <div class="progress mt-4 mx-auto" style="height: 10px; width: 85%; background: #222; border-radius: 20px; border: 1px solid #333;">
-          <div class="progress-bar" role="progressbar" 
-               style="width: {{ progress }}%; background: var(--accent-gold); box-shadow: 0 0 15px var(--accent-glow); transition: width 0.8s ease;" 
-               aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+    <div class="col-lg-4">
+      <div class="side-stack">
+        <div class="glass-card compact-card status-panel text-center">
+          <span class="card-label">Completion Status</span>
+          <div class="pt-3">
+            <h2 class="display-3 fw-bold text-gold mb-0">{{ progress }}%</h2>
+            <p class="text-dim mt-1 mb-0">Overall Task Success Rate</p>
+
+            <div class="progress mt-3 mx-auto" style="height: 10px; width: 85%; background: #222; border-radius: 20px; border: 1px solid #333;">
+              <div class="progress-bar" role="progressbar"
+                   style="width: {{ progress }}%; background: var(--accent-gold); box-shadow: 0 0 15px var(--accent-glow); transition: width 0.8s ease;"
+                   aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div class="glass-card mt-4">
-      <span class="card-label">Calendar</span>
-      <div class="mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <button id="prevMonth" type="button" class="btn btn-outline-secondary btn-sm">‹</button>
-          <h4 id="calendarMonth" class="mb-0"></h4>
-          <button id="nextMonth" type="button" class="btn btn-outline-secondary btn-sm">›</button>
+        <div class="glass-card compact-card">
+          <span class="card-label">Calendar</span>
+          <div class="mt-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <button id="prevMonth" type="button" class="btn btn-outline-secondary btn-sm">&lsaquo;</button>
+              <h4 id="calendarMonth" class="h6 mb-0"></h4>
+              <button id="nextMonth" type="button" class="btn btn-outline-secondary btn-sm">&rsaquo;</button>
+            </div>
+
+            <div class="calendar-grid text-dim small mb-2" style="display:grid; grid-template-columns: repeat(7,1fr); gap:.35rem;">
+              <div>Sun</div>
+              <div>Mon</div>
+              <div>Tue</div>
+              <div>Wed</div>
+              <div>Thu</div>
+              <div>Fri</div>
+              <div>Sat</div>
+            </div>
+
+            <div id="calendarDays"></div>
+          </div>
         </div>
-
-        <div class="calendar-grid text-dim small mb-3" style="display:grid; grid-template-columns: repeat(7,1fr); gap:.4rem;">
-          <div>Sun</div>
-          <div>Mon</div>
-          <div>Tue</div>
-          <div>Wed</div>
-          <div>Thu</div>
-          <div>Fri</div>
-          <div>Sat</div>
-        </div>
-
-        <div id="calendarDays" style="display:grid; grid-template-columns: repeat(7,1fr); gap:.5rem;"></div>
       </div>
     </div>
   </div>
@@ -127,7 +265,7 @@
 
     for (let i = 0; i < firstDay; i++) {
       const empty = document.createElement('div');
-      empty.style.minHeight = '90px';
+      empty.className = 'calendar-day';
       daysContainer.appendChild(empty);
     }
 
@@ -137,14 +275,13 @@
       const events = dueMap[cellDate] || [];
       const isToday = new Date().toDateString() === new Date(year, month, day).toDateString();
 
-      cell.className = 'p-3 rounded-3';
+      cell.className = 'calendar-day rounded-3';
       cell.style.background = isToday ? '#272727' : '#111';
       cell.style.border = isToday ? '1px solid var(--accent-gold)' : '1px solid #222';
-      cell.style.minHeight = '90px';
-      cell.innerHTML = `<strong class="d-block mb-2">${day}</strong>`;
+      cell.innerHTML = `<strong class="d-block mb-1">${day}</strong>`;
 
       if (events.length) {
-        cell.innerHTML += events.slice(0, 2).map(title => `<div class="text-start small text-gold mb-1" style="line-height:1.2;">• ${title}</div>`).join('');
+        cell.innerHTML += events.slice(0, 1).map(title => `<div class="calendar-event text-start text-gold mb-1">&bull; ${title}</div>`).join('');
       }
       daysContainer.appendChild(cell);
     }
